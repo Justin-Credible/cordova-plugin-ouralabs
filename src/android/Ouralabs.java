@@ -124,7 +124,7 @@ public final class Ouralabs {
     private static final String _SETTING_OPT_IN = "_opt_in";
 
     private static final Object sLock = new Object();
-    private static final Cache<String, Object> sCache = new Cache<>(30);
+    private static final Cache<String, Object> sCache = new Cache<String, Object>(30);
 
     private static Application sContext;
     private static Handler sHandler;
@@ -178,19 +178,21 @@ public final class Ouralabs {
             thread.setPriority(Thread.NORM_PRIORITY);
             thread.start();
 
-            sQueue = new LinkedList<>();
+            sQueue = new LinkedList<LogInternal>();
             sHandler = new Handler(thread.getLooper());
             sMainHandler = new Handler(Looper.getMainLooper());
             sFileComparator = new FileComparator();
             sFilenameFilter = new FileFilter();
-            sFiles = new LinkedList<>();
+            sFiles = new LinkedList<File>();
             sSettings = new JSONObject();
 
             sRandom = new SecureRandom();
 
             try {
                 sAESCipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
-            } catch (NoSuchAlgorithmException|NoSuchPaddingException ex) {
+            } catch (NoSuchAlgorithmException ex) {
+                Log.e(TAG, "Could not load AES cipher.", ex);
+            } catch (NoSuchPaddingException ex) {
                 Log.e(TAG, "Could not load AES cipher.", ex);
             }
 
@@ -295,8 +297,8 @@ public final class Ouralabs {
         l(INFO, TAG, "Set attributes.", new KVP(attributes));
 
         synchronized (sLock) {
-            if (attributes == null) attributes = new HashMap<>();
-            if (sAttributes == null) sAttributes = new HashMap<>();
+            if (attributes == null) attributes = new HashMap<String, String>();
+            if (sAttributes == null) sAttributes = new HashMap<String, String>();
 
             String attr1 = sAttributes.containsKey(ATTR_1) ? sAttributes.get(ATTR_1) : "";
             String attr2 = sAttributes.containsKey(ATTR_2) ? sAttributes.get(ATTR_2) : "";
@@ -469,7 +471,7 @@ public final class Ouralabs {
 
     public static Map<String, String> getAttributes() {
         synchronized (sLock) {
-            Map<String, String> attrs = new HashMap<>();
+            Map<String, String> attrs = new HashMap<String, String>();
 
             if (sAttributes != null) attrs.putAll(sAttributes);
 
@@ -929,7 +931,9 @@ public final class Ouralabs {
                 printWriter = new PrintWriter(file);
                 printWriter.write(sSettings.toString());
                 printWriter.flush();
-            } catch (IOException|JSONException ex) {
+            } catch (IOException ex) {
+                // no-op
+            } catch (JSONException ex) {
                 // no-op
             } finally {
                 close(printWriter);
@@ -1141,11 +1145,15 @@ public final class Ouralabs {
             Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(Cipher.ENCRYPT_MODE, publicKey);
             return cipher.doFinal(input);
-        } catch (IllegalBlockSizeException|
-                BadPaddingException|
-                NoSuchAlgorithmException|
-                InvalidKeyException|
-                NoSuchPaddingException ex) {
+        } catch (IllegalBlockSizeException ex) {
+            Log.e(TAG, ex.getMessage());
+        } catch (BadPaddingException ex) {
+            Log.e(TAG, ex.getMessage());
+        } catch (NoSuchAlgorithmException ex) {
+            Log.e(TAG, ex.getMessage());
+        } catch (InvalidKeyException ex) {
+            Log.e(TAG, ex.getMessage());
+        } catch (NoSuchPaddingException ex) {
             Log.e(TAG, ex.getMessage());
         }
 
@@ -1158,10 +1166,13 @@ public final class Ouralabs {
         try {
             sAESCipher.init(Cipher.ENCRYPT_MODE, key, iv);
             return sAESCipher.doFinal(input);
-        } catch (InvalidAlgorithmParameterException|
-                InvalidKeyException|
-                BadPaddingException|
-                IllegalBlockSizeException ex) {
+        } catch (InvalidAlgorithmParameterException ex) {
+            Log.e(TAG, ex.getMessage());
+        } catch (InvalidKeyException ex) {
+            Log.e(TAG, ex.getMessage());
+        } catch (BadPaddingException ex) {
+            Log.e(TAG, ex.getMessage());
+        } catch (IllegalBlockSizeException ex) {
             Log.e(TAG, ex.getMessage());
         }
 
@@ -1207,8 +1218,10 @@ public final class Ouralabs {
             field.setAccessible(true);
 
             tag = (String) field.get(null);
-        } catch (NoSuchFieldException|IllegalAccessException ex) {
+        } catch (NoSuchFieldException ex) {
             // no-op
+        } catch (IllegalAccessException ex) {
+            // no-ip
         }
 
         if (tag == null || tag.length() == 0) {
@@ -1600,7 +1613,7 @@ public final class Ouralabs {
     private static class QueueJob implements Runnable {
         @Override
         public void run() {
-            List<LogInternal> logs = new ArrayList<>();
+            List<LogInternal> logs = new ArrayList<LogInternal>();
 
             synchronized (sLock) {
                 logs.addAll(sQueue);
@@ -1665,7 +1678,7 @@ public final class Ouralabs {
         }
 
         public KVP() {
-            mMap = new HashMap<>();
+            mMap = new HashMap<String, Object>();
         }
 
         public KVP put(String key, double value, int scale) {
