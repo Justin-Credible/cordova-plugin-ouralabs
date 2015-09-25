@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        id="cordova-plugin-ouralabs"
+        version="1.0.0">
+
+    <name>Ouralabs</name>
+
+    <description>
+      This is the Cordova plugin for the Ouralabs mobile logging service.
+
+      https://www.ouralabs.com
+
+      Docs: https://github.com/justin-credible/cordova-plugin-ouralabs
+    </description>
+
+    <license>MIT</license>
+
+    <!-- JavaScript interface -->
+    <js-module src="www/ouralabs-plugin.js" name="OuralabsPlugin">
+        <clobbers target="cordova.plugins.ouralabs" />
+    </js-module>
+
+    <!-- android -->
+    <platform name="android">
+
+        <config-file target="res/xml/config.xml" parent="/*">
+            <access origin="https://*.ouralabs.com" />
+        </config-file>
+
+        <source-file src="src/android/Ouralabs.java" target-dir="src/com/ouralabs" />
+
+        <source-file src="src/android/OuralabsPlugin.java" target-dir="src/com/ouralabs" />
+
+    </platform>
+
+    <!-- ios -->
+    <platform name="ios">
+
+        <config-file target="config.xml" parent="/*">
+            <access origin="https://*.ouralabs.com" />
+        </config-file>
+
+        <header-file src="src/ios/Ouralabs.h" />
+        <source-file src="src/ios/Ouralabs.m" />
+
+        <header-file src="src/ios/OuralabsPlugin.h" />
+        <source-file src="src/ios/OuralabsPlugin.m" />
+
+        <framework src="SystemConfiguration.framework" />
+        <framework src="libz.dylib" />
+
+    </platform>
+
+</plugin>

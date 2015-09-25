@@ -1,0 +1,27 @@
+{
+  "name": "cordova-plugin-ouralabs",
+  "version": "1.0.0",
+  "description": "Cordova Ouralabs Plugin",
+  "cordova": {
+    "id": "cordova-plugin-ouralabs",
+    "platforms": [
+      "android",
+      "ios"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/justin-credible/cordova-plugin-ouralabs"
+  },
+  "keywords": [
+    "cordova",
+    "ouralabs",
+    "logging",
+    "logger",
+    "logs",
+    "ecosystem:cordova",
+    "cordova-android",
+    "cordova-ios"
+  ],
+  "license": "MIT"
+}
