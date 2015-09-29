@@ -18,13 +18,16 @@
 
     <!-- JavaScript interface -->
     <js-module src="www/ouralabs-plugin.js" name="OuralabsPlugin">
-        <clobbers target="cordova.plugins.ouralabs" />
+        <clobbers target="OuralabsPlugin" />
     </js-module>
 
     <!-- android -->
     <platform name="android">
 
         <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="OuralabsPlugin">
+                <param name="android-package" value="com.ouralabs.OuralabsPlugin" />
+            </feature>
             <access origin="https://*.ouralabs.com" />
         </config-file>
 
@@ -38,6 +41,9 @@
     <platform name="ios">
 
         <config-file target="config.xml" parent="/*">
+            <feature name="OuralabsPlugin">
+                <param name="ios-package" value="OuralabsPlugin" />
+            </feature>
             <access origin="https://*.ouralabs.com" />
         </config-file>
 

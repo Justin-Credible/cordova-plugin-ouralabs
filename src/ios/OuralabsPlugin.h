@@ -7,6 +7,7 @@
 #import <Foundation/Foundation.h>
 #import <Cordova/CDV.h>
 #import "AppDelegate.h"
+#import "Ouralabs.h"
 
 @interface OuralabsPlugin : CDVPlugin
 - (void)init:(CDVInvokedUrlCommand *)command;
