@@ -1,5 +1,7 @@
 package com.ouralabs;
 
+import java.util.Map;
+import java.util.HashMap;
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
@@ -14,15 +16,24 @@ public final class OuralabsPlugin extends CordovaPlugin {
             return false;
         }
 
-        if (action.equals("init")) {
-            this.init(args, callbackContext);
+        try {
+            if (action.equals("init")) {
+                this.init(args, callbackContext);
+            }
+            else if (action.equals("setAttributes")) {
+                this.setAttributes(args, callbackContext);
+            }
+            else if (action.equals("log")) {
+                this.log(args, callbackContext);
+            }
+            else {
+                // The given action was not handled above.
+                return false;
+            }
         }
-        else if (action.equals("log")) {
-            this.log(args, callbackContext);
-        }
-        else {
-            // The given action was not handled above.
-            return false;
+        catch (Exception exception) {
+            callbackContext.error("OuralabsPlugin uncaught exception: " + exception.getMessage());
+            return true;
         }
 
         // The given action was handled above.
@@ -48,6 +59,30 @@ public final class OuralabsPlugin extends CordovaPlugin {
 
         // Delegate to the Ouralabs API.
         Ouralabs.init(this.cordova.getActivity().getApplicationContext(), channelId);
+        callbackContext.success();
+    }
+
+    private void setAttributes(JSONArray args, final CallbackContext callbackContext) throws JSONException {
+
+        // Ensure we have the correct number of arguments.
+        if (args.length() != 3) {
+            callbackContext.error("Three attribute values are required.");
+            return;
+        }
+
+        // Obtain the arguments.
+        String attribute1 = args.getString(0);
+        String attribute2 = args.getString(1);
+        String attribute3 = args.getString(2);
+
+        // Build the dictionary of arguments for the Ouralabs API.
+        Map<String, String> attrs = new HashMap<String, String>();
+        attrs.put(Ouralabs.ATTR_1, attribute1);
+        attrs.put(Ouralabs.ATTR_2, attribute2);
+        attrs.put(Ouralabs.ATTR_3, attribute3);
+
+        // Delegate to the Ouralabs API.
+        Ouralabs.setAttributes(attrs);
         callbackContext.success();
     }
 

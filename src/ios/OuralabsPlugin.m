@@ -67,6 +67,34 @@
     }];
 }
 
+- (void)setAttributes:(CDVInvokedUrlCommand *)command {
+
+    // Ensure we have the correct number of arguments.
+    if ([command.arguments count] != 3) {
+        CDVPluginResult *res = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Three attribute values are required."];
+        [self.commandDelegate sendPluginResult:res callbackId:command.callbackId];
+        return;
+    }
+
+    // Obtain the arguments.
+    NSString* attribute1 = [command.arguments objectAtIndex:0];
+    NSString* attribute2 = [command.arguments objectAtIndex:1];
+    NSString* attribute3 = [command.arguments objectAtIndex:2];
+
+    // Build the dictionary of arguments for the Ouralabs API.
+    NSDictionary *attrs = @{OUAttr1 : attribute1,
+                            OUAttr2 : attribute2,
+                            OUAttr3 : attribute3};
+
+    // Delegate to the Ouralabs API.
+    [self.commandDelegate runInBackground:^{
+        [Ouralabs setAttributes:attrs];
+
+        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    }];
+}
+
 - (void)log:(CDVInvokedUrlCommand *)command {
 
     // Ensure we have the correct number of arguments.

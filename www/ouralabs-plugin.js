@@ -2,6 +2,8 @@
 
 var exec = require("cordova/exec");
 
+var PLUGIN_ID = "OuralabsPlugin";
+
 exports.LogLevel = {
 	TRACE: 0,
 	DEBUG: 1,
@@ -12,32 +14,60 @@ exports.LogLevel = {
 };
 
 exports.init = function init(channelId, successCallback, failureCallback) {
-	exec(successCallback, failureCallback, "OuralabsPlugin", "init", [channelId]);
+	exec(successCallback, failureCallback, PLUGIN_ID, "init", [channelId]);
+};
+
+exports.setAttributes = function setAttributes(attribute1, attribute2, attribute3, successCallback, failureCallback) {
+	
+	var attributes = [];
+	
+	if (attribute1 != null && typeof(attribute1) !== "string") {
+		throw new Error("The attribute1 value must be null or a string.");
+	}
+	else {
+		attributes.push(attribute1);
+	}
+	
+	if (attribute2 != null && typeof(attribute2) !== "string") {
+		throw new Error("The attribute2 value must be null or a string.");
+	}
+	else {
+		attributes.push(attribute2);
+	}
+	
+	if (attribute3 != null && typeof(attribute3) !== "string") {
+		throw new Error("The attribute1 value must be null or a string.");
+	}
+	else {
+		attributes.push(attribute3);
+	}
+	
+	exec(successCallback, failureCallback, PLUGIN_ID, "setAttributes", attributes);
 };
 
 exports.logTrace = function logTrace(tag, message, metadata, successCallback, failureCallback) {
 	this.log(this.LogLevel.TRACE, tag, message, metadata, successCallback, failureCallback);
-}
+};
 
 exports.logDebug = function logDebug(tag, message, metadata, successCallback, failureCallback) {
 	this.log(this.LogLevel.DEBUG, tag, message, metadata, successCallback, failureCallback);
-}
+};
 
 exports.logInfo = function logInfo(tag, message, metadata, successCallback, failureCallback) {
 	this.log(this.LogLevel.INFO, tag, message, metadata, successCallback, failureCallback);
-}
+};
 
 exports.logWarn = function logWarn(tag, message, metadata, successCallback, failureCallback) {
 	this.log(this.LogLevel.WARN, tag, message, metadata, successCallback, failureCallback);
-}
+};
 
 exports.logError = function logError(tag, message, metadata, successCallback, failureCallback) {
 	this.log(this.LogLevel.ERROR, tag, message, metadata, successCallback, failureCallback);
-}
+};
 
 exports.logFatal = function logFatal(tag, message, metadata, successCallback, failureCallback) {
 	this.log(this.LogLevel.FATAL, tag, message, metadata, successCallback, failureCallback);
-}
+};
 
 exports.log = function log(logLevel, tag, message, metadata, successCallback, failureCallback) {
 	
@@ -78,5 +108,5 @@ exports.log = function log(logLevel, tag, message, metadata, successCallback, fa
 		}
 	}
 	
-	exec(successCallback, failureCallback, "OuralabsPlugin", "log", [logLevel, tag, message]);
-}
+	exec(successCallback, failureCallback, PLUGIN_ID, "log", [logLevel, tag, message]);
+};
