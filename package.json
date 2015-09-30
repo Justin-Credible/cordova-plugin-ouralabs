@@ -1,7 +1,7 @@
 {
   "name": "cordova-plugin-ouralabs",
   "version": "1.0.0",
-  "description": "Cordova Ouralabs Plugin",
+  "description": "Cordova plugin for Ouralabs centralized remote logging platform.",
   "cordova": {
     "id": "cordova-plugin-ouralabs",
     "platforms": [

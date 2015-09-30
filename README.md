@@ -1,4 +1,4 @@
-# cordova-plugin-ouralabs
+# Cordova plugin for Ouralabs
 
 This is a [Cordova](http://cordova.apache.org/) plugin for the Ouralabs centralized remote logging platform.
 

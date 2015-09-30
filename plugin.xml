@@ -7,21 +7,17 @@
     <name>Ouralabs</name>
 
     <description>
-      This is the Cordova plugin for the Ouralabs mobile logging service.
-
-      https://www.ouralabs.com
-
-      Docs: https://github.com/justin-credible/cordova-plugin-ouralabs
+      This is a Cordova plugin for the Ouralabs centralized remote logging platform. https://www.ouralabs.com
     </description>
 
     <license>MIT</license>
 
-    <!-- JavaScript interface -->
+    <!-- JavaScript Interface -->
     <js-module src="www/ouralabs-plugin.js" name="OuralabsPlugin">
         <clobbers target="OuralabsPlugin" />
     </js-module>
 
-    <!-- android -->
+    <!-- Android Configuration -->
     <platform name="android">
 
         <config-file target="res/xml/config.xml" parent="/*">
@@ -37,7 +33,7 @@
 
     </platform>
 
-    <!-- ios -->
+    <!-- iOS Configuration -->
     <platform name="ios">
 
         <config-file target="config.xml" parent="/*">
