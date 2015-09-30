@@ -88,7 +88,7 @@ exports.log = function log(logLevel, tag, message, metadata, successCallback, fa
 		
 		// First try serializing to JSON.
 		try {
-			JSON.stringify(message);
+			message += " " + JSON.stringify(metadata);
 		}
 		catch (exception) {
 			
