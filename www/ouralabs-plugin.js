@@ -154,21 +154,33 @@ OuralabsPlugin.setAttributes = function setAttributes(attribute1, attribute2, at
 	
 	var attributes = [];
 	
-	if (attribute1 != null && typeof(attribute1) !== "string") {
+	if (attribute1 == null) {
+		attribute1 = "";
+	}
+	
+	if (attribute2 == null) {
+		attribute2 = "";
+	}
+	
+	if (attribute3 == null) {
+		attribute3 = "";
+	}
+	
+	if (typeof(attribute1) !== "string") {
 		throw new Error("The attribute1 value must be null or a string.");
 	}
 	else {
 		attributes.push(attribute1);
 	}
 	
-	if (attribute2 != null && typeof(attribute2) !== "string") {
+	if (typeof(attribute2) !== "string") {
 		throw new Error("The attribute2 value must be null or a string.");
 	}
 	else {
 		attributes.push(attribute2);
 	}
 	
-	if (attribute3 != null && typeof(attribute3) !== "string") {
+	if (typeof(attribute3) !== "string") {
 		throw new Error("The attribute1 value must be null or a string.");
 	}
 	else {
