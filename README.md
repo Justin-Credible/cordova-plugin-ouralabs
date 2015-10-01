@@ -20,7 +20,7 @@ Alternatively, you can install the latest version of the plugin directly from gi
 
 The plugin is available via a global variable named `OuralabsPlugin`. It exposes the following properties and functions.
 
-All functions accept optional success and failure callabacks as their final two arguments, where the failure callback will receive an error string as an argument unless otherwise noted.
+All functions accept optional success and failure callbacks as their final two arguments, where the failure callback will receive an error string as an argument unless otherwise noted.
 
 A TypeScript definition file for the JavaScript interface is available on DefinitelyTyped.
 
@@ -43,7 +43,7 @@ Example Usage:
 
 ## Initialization
 
-Initialize the Ourlabs plugin with the given channel ID string value. You can obtain your channel ID from the Ouralabs dashboard.
+Initialize the Ouralabs plugin with the given channel ID string value. You can obtain your channel ID from the Ouralabs dashboard.
 
 Method Signature:
 
@@ -124,3 +124,42 @@ Example usage:
 `OuralabsPlugin.logInfo("my_function", "It was called.");`
 
 `OuralabsPlugin.logWarn("other_fucntion", "Something isn't right...", data);`
+
+## Browser Console
+
+The plugin can optionally integrate with the browser console in two ways:
+
+1. Ensure calls to `OuralabsPlugin.log()` (and its helper methods) will also show up in the browser console.
+2. Ensure out-of-band calls to the browser's console methods (eg `console.log(...)`, `console.error(...)`, etc) also get pushed into Ouralabs.
+
+Both of these features are disabled by default and can be enabled with the following methods.
+
+*NOTE: It is not recommended to use these features in conjunction with the `cordova-plugin-console` plugin as it duplicates some of its functionality.*
+
+### Show log entries in browser console
+
+Method Signature:
+
+`setLogToBrowserConsole(enable)`
+
+Parameters:
+
+* `enable` (boolean): True to enable, false to disable.
+
+Example Usage:
+
+`OuralabsPlugin.setLogToBrowserConsole(true);`
+
+### Ensure native log entries are logged to Ouralabs
+
+Method Signature:
+
+`setHookBrowserConsole(enable)`
+
+Parameters:
+
+* `enable` (boolean): True to enable, false to disable.
+
+Example Usage:
+
+`OuralabsPlugin.setHookBrowserConsole(true);`
