@@ -10,34 +10,61 @@ import org.json.JSONException;
 public final class OuralabsPlugin extends CordovaPlugin {
 
     @Override
-    public boolean execute(String action, JSONArray args, final CallbackContext callbackContext) throws JSONException {
+    public boolean execute(String action, final JSONArray args, final CallbackContext callbackContext) throws JSONException {
 
         if (action == null) {
             return false;
         }
 
-        try {
-            if (action.equals("init")) {
-                this.init(args, callbackContext);
-            }
-            else if (action.equals("setAttributes")) {
-                this.setAttributes(args, callbackContext);
-            }
-            else if (action.equals("log")) {
-                this.log(args, callbackContext);
-            }
-            else {
-                // The given action was not handled above.
-                return false;
-            }
-        }
-        catch (Exception exception) {
-            callbackContext.error("OuralabsPlugin uncaught exception: " + exception.getMessage());
+        if (action.equals("init")) {
+
+            cordova.getThreadPool().execute(new Runnable() {
+                public void run() {
+                try {
+                    OuralabsPlugin.this.init(args, callbackContext);
+                }
+                catch (Exception exception) {
+                    callbackContext.error("OuralabsPlugin uncaught exception: " + exception.getMessage());
+                }
+                }
+            });
+
             return true;
         }
+        else if (action.equals("setAttributes")) {
 
-        // The given action was handled above.
-        return true;
+            cordova.getThreadPool().execute(new Runnable() {
+                public void run() {
+                    try {
+                        OuralabsPlugin.this.setAttributes(args, callbackContext);
+                    }
+                    catch (Exception exception) {
+                        callbackContext.error("OuralabsPlugin uncaught exception: " + exception.getMessage());
+                    }
+                }
+            });
+
+            return true;
+        }
+        else if (action.equals("log")) {
+
+            cordova.getThreadPool().execute(new Runnable() {
+                public void run() {
+                    try {
+                        OuralabsPlugin.this.log(args, callbackContext);
+                    }
+                    catch (Exception exception) {
+                        callbackContext.error("OuralabsPlugin uncaught exception: " + exception.getMessage());
+                    }
+                }
+            });
+
+            return true;
+        }
+        else {
+            // The given action was not handled above.
+            return false;
+        }
     }
 
     private void init(JSONArray args, final CallbackContext callbackContext) throws JSONException {
