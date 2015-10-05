@@ -20,12 +20,12 @@ public final class OuralabsPlugin extends CordovaPlugin {
 
             cordova.getThreadPool().execute(new Runnable() {
                 public void run() {
-                try {
-                    OuralabsPlugin.this.init(args, callbackContext);
-                }
-                catch (Exception exception) {
-                    callbackContext.error("OuralabsPlugin uncaught exception: " + exception.getMessage());
-                }
+                    try {
+                        OuralabsPlugin.this.init(args, callbackContext);
+                    }
+                    catch (Exception exception) {
+                        callbackContext.error("OuralabsPlugin uncaught exception: " + exception.getMessage());
+                    }
                 }
             });
 
