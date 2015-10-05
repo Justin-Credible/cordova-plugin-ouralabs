@@ -10,12 +10,12 @@
 #define OUDouble(value, scaleValue) ([OUDouble doubleWithDouble:value scale:scaleValue])
 
 typedef NS_ENUM(NSInteger, OULogLevel) {
-    OULogLevelTrace  = 0,
-    OULogLevelDebug  = 1,
-    OULogLevelInfo   = 2,
-    OULogLevelWarn   = 3,
-    OULogLevelError  = 4,
-    OULogLevelFatal  = 5
+    OULogLevelTrace     = 0,
+    OULogLevelDebug     = 1,
+    OULogLevelInfo      = 2,
+    OULogLevelWarn      = 3,
+    OULogLevelError     = 4,
+    OULogLevelFatal     = 5
 };
 
 OBJC_EXTERN void __attribute__((overloadable)) OULogTrace(NSString *tag, NSString *message, ...) NS_FORMAT_FUNCTION(2, 3);
@@ -85,6 +85,7 @@ typedef void (^OUSettingsChangedBlock)(BOOL liveTail, OULogLevel logLevel);
 + (void)setLoggerLogsAllowed:(NSNumber *)allowed;
 + (void)setSettingsChangedBlock:(OUSettingsChangedBlock)settingsChangedBlock;
 + (void)setLogLifecycle:(NSNumber *)enable;
++ (void)setLogUncaughtExceptions:(NSNumber *)enable;
 
 + (BOOL)getInitialized;
 + (BOOL)getLiveTail;
@@ -100,6 +101,7 @@ typedef void (^OUSettingsChangedBlock)(BOOL liveTail, OULogLevel logLevel);
 + (BOOL)getLoggerLogsAllowed;
 + (OUSettingsChangedBlock)getSettingsChangedBlock;
 + (BOOL)getLogLifecycle;
++ (BOOL)getLogUncaughtExceptions;
 
 + (void)update;
 + (void)flush;

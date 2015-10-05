@@ -210,20 +210,6 @@ void __attribute__((overloadable)) OULogInner(OULogLevel level, NSString *tag, N
     }
 }
 
-#pragma mark - Exception Handler
-
-static NSUncaughtExceptionHandler *original_exception_handler;
-
-void uncaught_exception_handler(NSException *ex) {
-    if (ex) {
-        OULogFatal(@"Runtime", ex.reason, ex);
-    }
-    
-    if (original_exception_handler) {
-        original_exception_handler(ex);
-    }
-}
-
 #pragma mark - Constants
 
 NSString *const OUAttr1 = @"attr_1";
@@ -232,7 +218,7 @@ NSString *const OUAttr3 = @"attr_3";
 
 static NSString *const TAG = @"Ouralabs";
 
-static NSString *const VERSION = @"2.5.0";
+static NSString *const VERSION = @"2.6.0";
 
 static NSString *const SETTING_API_SCHEME                = @"api_scheme";
 static NSString *const SETTING_API_HOST                  = @"api_host";
@@ -250,11 +236,27 @@ static NSString *const SETTING_DISK_ONLY                 = @"disk_only";
 static NSString *const SETTING_BUFFERED                  = @"buffered";
 static NSString *const SETTING_LOGGER_LOGS_ALLOWED       = @"logger_logs_allowed";
 static NSString *const SETTING_LOG_LIFECYCLE             = @"log_lifecycle";
+static NSString *const SETTING_UNCAUGHT_EXCEPTIONS       = @"uncaught_exceptions";
 static NSString *const _SETTING_ATTR_1                   = @"_attr_1";
 static NSString *const _SETTING_ATTR_2                   = @"_attr_2";
 static NSString *const _SETTING_ATTR_3                   = @"_attr_3";
 static NSString *const _SETTING_OPT_IN                   = @"_opt_in";
 static NSString *const _SETTING_SIMULATOR_VENDOR_ID      = @"_simulator_vendor_id";
+
+#pragma mark - Exception Handler
+
+static NSUncaughtExceptionHandler *original_exception_handler;
+
+void uncaught_exception_handler(NSException *ex) {
+    if (ex) {
+        OULogFatal(@"Runtime", ex.reason, ex);
+    }
+    
+    if (original_exception_handler) {
+        OULogInner(LDEBUG, TAG, @"Forwarding uncaught exception");
+        original_exception_handler(ex);
+    }
+}
 
 #pragma mark - OUDouble
 
@@ -461,9 +463,10 @@ static BOOL                      sDisableTimedOperations;
 static NSNumber                 *sLoggerLogsAllowed;
 static OUSettingsChangedBlock    sSettingsChangedBlock;
 static NSNumber                 *sLogLifecycle;
+static NSNumber                 *sUncaughtExceptions;
 
-static const char *sApplicationName;
-static pid_t       sPid;
+static NSString *sApplicationName;
+static pid_t     sPid;
 
 static NSData *sAESKey;
 static NSData *sEncryptedAESKey;
@@ -509,15 +512,16 @@ static NSTimer *sUploadTimer;
         sDateFormatter = [[NSDateFormatter alloc] init];
         sDateFormatter.dateFormat = @"yyyy-MM-dd HH:mm:ss.SSS";
         
-        sApplicationName = [valOrBlank([[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]) UTF8String];
+        sApplicationName = valOrBlank([[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"]);
         sPid = getpid();
+        original_exception_handler = NSGetUncaughtExceptionHandler();
         
         sSettings    = [NSMutableDictionary dictionaryWithDictionary:
                         @{SETTING_API_SCHEME                : @"https",
                           SETTING_API_HOST                  : @"www.ouralabs.com",
                           SETTING_API_TIMEOUT               : @(120),
                           SETTING_LOG_LEVEL                 : @(OULogLevelWarn),
-                          SETTING_MAX_FILE_SIZE             : @(1024 * 1024),
+                          SETTING_MAX_FILE_SIZE             : @(1024 * 512),
                           SETTING_MAX_SIZE                  : @(1024 * 1024 * 20),
                           SETTING_DISK_ONLY                 : @(YES),
                           SETTING_BUFFERED                  : @(NO),
@@ -528,7 +532,8 @@ static NSTimer *sUploadTimer;
                           SETTING_LIVE_TAIL                 : @(NO),
                           SETTING_CERTIFICATE               : @"",
                           SETTING_LOGGER_LOGS_ALLOWED       : @(NO),
-                          SETTING_LOG_LIFECYCLE             : @(YES)}];
+                          SETTING_LOG_LIFECYCLE             : @(YES),
+                          SETTING_UNCAUGHT_EXCEPTIONS       : @(NO)}];
         
         sNotifications = @[UIApplicationDidEnterBackgroundNotification,
                            UIApplicationWillEnterForegroundNotification,
@@ -585,6 +590,7 @@ static NSTimer *sUploadTimer;
                         
                         [self saveSettings];
                         [self publishSettingsChanged];
+                        [self toggleUncaughtExceptionHandler];
                     } else {
                         if (error) {
                             OULogInner(LERROR, TAG, @"Could not retrieve settings.", @{@"time"   : OUDouble(delta, 3),
@@ -754,13 +760,13 @@ static NSTimer *sUploadTimer;
         sChannelKey    = key;
         sAESKey        = [self generateAESKey];
         
-        [self installExceptionHandler];
         [self loadSettings];
         
         sVendorID      = [self vendorID];
         sNameID        = [self sha256:[[UIDevice currentDevice] name]];
         
         [self updateFiles];
+        [self toggleUncaughtExceptionHandler];
         
         OULogInner(LINFO, TAG, @"Initialized Ouralabs.");
         
@@ -900,6 +906,16 @@ static NSTimer *sUploadTimer;
     
     [self toggleLogLifecycle];
     unlock();
+}
+
++ (void)setLogUncaughtExceptions:(NSNumber *)enable {
+    OULogInner(LINFO, TAG, @"Set log uncaught exceptions.", @{@"enable" : valOr(enable, [NSNull null])});
+    
+    lock();
+    sUncaughtExceptions = enable;
+    unlock();
+    
+    [self toggleUncaughtExceptionHandler];
 }
 
 + (BOOL)getInitialized {
@@ -1052,6 +1068,18 @@ static NSTimer *sUploadTimer;
     return val;
 }
 
++ (BOOL)getLogUncaughtExceptions {
+    BOOL val;
+    lock();
+    if (sUncaughtExceptions) {
+        val = [sUncaughtExceptions boolValue];
+    } else {
+        val = sSettings[SETTING_UNCAUGHT_EXCEPTIONS] ? [sSettings[SETTING_UNCAUGHT_EXCEPTIONS] boolValue] : NO;
+    }
+    unlock();
+    return val;
+}
+
 + (void)update {
     lock();
     if (sInitialized) {
@@ -1144,7 +1172,7 @@ static NSTimer *sUploadTimer;
     if (![self getDiskOnly]) {
         printf("%s %s[%d:%s] %s/%s %s\n",
                [log dateString].UTF8String,
-               sApplicationName,
+               sApplicationName.UTF8String,
                sPid,
                log.thread.UTF8String,
                [log levelIndicator].UTF8String,
@@ -1197,11 +1225,6 @@ static NSTimer *sUploadTimer;
     }
     unlock();
     return val;
-}
-
-+ (void)installExceptionHandler {
-    original_exception_handler = NSGetUncaughtExceptionHandler();
-    NSSetUncaughtExceptionHandler(&uncaught_exception_handler);
 }
 
 + (void)publishSettingsChanged {
@@ -1352,12 +1375,11 @@ static NSTimer *sUploadTimer;
                                                                                 @"model"            : valOrBlank([self model]),
                                                                                 @"name_id"          : valOrBlank(sNameID),
                                                                                 @"vendor_id"        : valOrBlank(sVendorID),
-                                                                                @"device_key"       : valOrBlank([self createDeviceKey]),
                                                                                 @"app_identifier"   : valOr([[NSBundle mainBundle] bundleIdentifier], @"unknown"),
                                                                                 @"app_version"      : valOrBlank([self getAppVersion]),
                                                                                 @"opt_in"           : @([self getOptIn]),
                                                                                 @"live_tail"        : valOr(sLiveTail, [NSNull null]),
-                                                                                @"log_level"        : valOr(sLogLevel, [NSNull null])}];
+                                                                                @"log_level"        : sLogLevel ? sLogLevel : [NSNull null]}];
     
     if (sAttributes) {
         if (sAttributes[OUAttr1]) dict[OUAttr1] = sAttributes[OUAttr1];
@@ -1394,10 +1416,6 @@ static NSTimer *sUploadTimer;
     }
     
     return connected;
-}
-
-+ (NSString *)createDeviceKey {
-    return [self sha256:[sVendorID stringByAppendingString:sNameID]];
 }
 
 + (NSString *)vendorID {
@@ -1517,7 +1535,7 @@ static NSTimer *sUploadTimer;
 }
 
 + (NSString *)urlEncode:(NSString *)str {
-    return (NSString *)CFBridgingRelease(CFURLCreateStringByAddingPercentEscapes(NULL, (__bridge CFStringRef) str, NULL, CFSTR("!*'();:@&=+$,/?%#[]\" "), kCFStringEncodingUTF8));
+    return [str stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
 }
 
 + (BOOL)removeFile:(NSString *)file {
@@ -1586,35 +1604,29 @@ static NSTimer *sUploadTimer;
                                                                  cachePolicy:NSURLRequestReloadIgnoringCacheData
                                                              timeoutInterval:[sSettings[SETTING_API_TIMEOUT] doubleValue]];
     NSString *method = body ? @"POST" : @"GET";
-    NSError *error;
-    NSHTTPURLResponse *response;
-    
     request.HTTPMethod = method;
     
     if ([@"POST" isEqualToString:method]) {
         NSData *compressedBody = [self compress:body];
         [request setValue:@"gzip/json" forHTTPHeaderField:@"Content-Type"];
         [request setValue:@"gzip" forHTTPHeaderField:@"Content-Encoding"];
-        [request setValue:[@(compressedBody.length) stringValue] forHTTPHeaderField:@"Content-Length"]; 
+        [request setValue:[@(compressedBody.length) stringValue] forHTTPHeaderField:@"Content-Length"];
         [request setHTTPBody:compressedBody];
     }
     
-    NSData *responseData = [NSURLConnection sendSynchronousRequest:request
-                                                 returningResponse:&response
-                                                             error:&error];
-    
-    
-    if (!responseData) {
-        if (responseBlock) responseBlock(-1, nil, error);
-    } else {
-        NSError *error;
-        NSInteger statusCode = ((NSHTTPURLResponse *)response).statusCode;
-        NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:responseData
-                                                             options:0
-                                                               error:&error];
-        
-        if (responseBlock) responseBlock(statusCode, dict, error);
-    }
+    [[[NSURLSession sharedSession] dataTaskWithRequest:request
+                                    completionHandler:^(NSData *responseData, NSURLResponse *response, NSError *error) {
+                                        if (!responseData) {
+                                            if (responseBlock) responseBlock(-1, nil, error);
+                                        } else {
+                                            NSInteger statusCode = ((NSHTTPURLResponse *)response).statusCode;
+                                            NSDictionary *dict = [NSJSONSerialization JSONObjectWithData:responseData
+                                                                                                 options:0
+                                                                                                   error:nil];
+                                            
+                                            if (responseBlock) responseBlock(statusCode, dict, error);
+                                        }
+                                    }] resume];
 }
 
 + (void)dispatchTimer:(NSTimer *)timer {
@@ -1803,6 +1815,22 @@ static NSTimer *sUploadTimer;
     }
     
     return nil;
+}
+
++ (void)toggleUncaughtExceptionHandler {
+    lock();
+    NSUncaughtExceptionHandler *handler = NSGetUncaughtExceptionHandler();
+    
+    if ([self getLogUncaughtExceptions] && uncaught_exception_handler != handler) {
+        OULogInner(LDEBUG, TAG, @"Using Ouralabs exception handler.");
+        
+        NSSetUncaughtExceptionHandler(&uncaught_exception_handler);
+    } else if (![self getLogUncaughtExceptions] && uncaught_exception_handler == handler) {
+        OULogInner(LDEBUG, TAG, @"Removing Ouralabs exception handler.");
+        
+        NSSetUncaughtExceptionHandler(original_exception_handler);
+    }
+    unlock();
 }
 
 + (void)toggleLogLifecycle {

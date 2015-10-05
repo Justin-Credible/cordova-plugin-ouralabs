@@ -48,7 +48,6 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -82,7 +81,7 @@ public final class Ouralabs {
 
     private static final String TAG = "Ouralabs";
 
-    public static final String VERSION = "2.5.0";
+    public static final String VERSION = "2.6.0";
 
     public static final int TRACE = 0;
     public static final int DEBUG = 1;
@@ -97,7 +96,6 @@ public final class Ouralabs {
 
     private static final Charset UTF8 = Charset.forName("UTF-8");
 
-    private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
     private static final String[] LOG_LEVELS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
     private static final int AES_BLOCK_SIZE = 16;
 
@@ -117,6 +115,7 @@ public final class Ouralabs {
     private static final String SETTING_BUFFERED = "buffered";
     private static final String SETTING_LOGGER_LOGS_ALLOWED = "logger_logs_allowed";
     private static final String SETTING_LOG_LIFECYCLE = "log_lifecycle";
+    private static final String SETTING_UNCAUGHT_EXCEPTIONS = "uncaught_exceptions";
 
     private static final String _SETTING_ATTR_1 = "_attr_1";
     private static final String _SETTING_ATTR_2 = "_attr_2";
@@ -145,10 +144,12 @@ public final class Ouralabs {
     private static Map<String, String> sAttributes;
     private static Boolean sLoggerLogsAllowed;
     private static Boolean sLogLifecycle;
+    private static Boolean sUncaughtExceptions;
 
     private static OnSettingsChangeListener sOnSettingsChangeListener;
     private static ActivityLifecycleCallbacks sActivityLifecycleCallbacks;
     private static OnProvideAssistDataListener sOnProvideAssistDataListener;
+    private static ExceptionHandler sExceptionHandler;
 
     private static SecretKeySpec sAESKey;
     private static byte[] sEncryptedAESKey;
@@ -187,6 +188,7 @@ public final class Ouralabs {
             sSettings = new JSONObject();
 
             sRandom = new SecureRandom();
+            sExceptionHandler = new ExceptionHandler();
 
             try {
                 sAESCipher = Cipher.getInstance("AES/CBC/PKCS7Padding");
@@ -222,15 +224,15 @@ public final class Ouralabs {
                 sSettings = getDefaultSettings();
                 sAESKey = generateAESKey();
 
-                Thread.setDefaultUncaughtExceptionHandler(new ExceptionHandler());
-
                 if (Build.VERSION.SDK_INT > 14) {
                     sContext.registerComponentCallbacks(getComponentCallbacks());
                 }
 
                 loadSettings();
+
                 updateFiles();
                 toggleLogLifecycle();
+                toggleUncaughtExceptionHandler();
 
                 l(INFO, TAG, "Initialized Ouralabs.");
 
@@ -373,6 +375,16 @@ public final class Ouralabs {
         }
     }
 
+    public static void setLogUncaughtExceptions(Boolean enable) {
+        l(INFO, TAG, "Set uncaught exceptions.", new KVP().put("enabled", enable));
+
+        synchronized (sLock) {
+            sUncaughtExceptions = enable;
+        }
+
+        toggleUncaughtExceptionHandler();
+    }
+
     public static void update() {
         synchronized (sLock) {
             if (sInitialized) {
@@ -508,6 +520,13 @@ public final class Ouralabs {
         synchronized (sLock) {
             if (sLogLifecycle != null) return sLogLifecycle;
             return sSettings != null && sSettings.optBoolean(SETTING_LOG_LIFECYCLE);
+        }
+    }
+
+    public static boolean getLogUncaughtExceptions() {
+        synchronized (sLock) {
+            if (sUncaughtExceptions != null) return sUncaughtExceptions;
+            return sSettings != null && sSettings.optBoolean(SETTING_UNCAUGHT_EXCEPTIONS);
         }
     }
 
@@ -950,7 +969,7 @@ public final class Ouralabs {
                     .put(SETTING_API_HOST, "www.ouralabs.com")
                     .put(SETTING_API_TIMEOUT, 120d)
                     .put(SETTING_LOG_LEVEL, WARN)
-                    .put(SETTING_MAX_FILE_SIZE, 1024l * 1024l)
+                    .put(SETTING_MAX_FILE_SIZE, 1024l * 512l)
                     .put(SETTING_MAX_SIZE, 1024l * 1024l * 20l)
                     .put(SETTING_DISK_ONLY, true)
                     .put(SETTING_BUFFERED, false)
@@ -961,7 +980,8 @@ public final class Ouralabs {
                     .put(SETTING_LIVE_TAIL, false)
                     .put(SETTING_CERTIFICATE, "")
                     .put(SETTING_LOGGER_LOGS_ALLOWED, false)
-                    .put(SETTING_LOG_LIFECYCLE, true);
+                    .put(SETTING_LOG_LIFECYCLE, true)
+                    .put(SETTING_UNCAUGHT_EXCEPTIONS, false);
         } catch (JSONException ex) {
             l(ERROR, TAG, "Could not create default settings.", ex);
         }
@@ -980,7 +1000,6 @@ public final class Ouralabs {
                     .put("model", Build.MODEL)
                     .put("serial", getSerial())
                     .put("android_id", getAndroidID())
-                    .put("device_key", createDeviceKey())
                     .put("app_identifier", getAppIdentifier())
                     .put("app_version", getAppVersion())
                     .put("opt_in", getOptIn())
@@ -1044,35 +1063,6 @@ public final class Ouralabs {
             return networkinfo != null && networkinfo.isConnected();
         } else {
             return true;
-        }
-    }
-
-    private static String createDeviceKey() {
-        String packageName = sContext.getPackageName();
-        String androidID = getAndroidID();
-        String serial = getSerial();
-
-        return SHA256(packageName + androidID + serial);
-    }
-
-    private static String SHA256(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(input.getBytes());
-
-            char[] hexChars = new char[bytes.length * 2];
-
-            for (int j = 0; j < bytes.length; j++) {
-                int v = bytes[j] & 0xFF;
-
-                hexChars[j * 2] = HEX_ARRAY[v >>> 4];
-                hexChars[j * 2 + 1] = HEX_ARRAY[v & 0x0F];
-            }
-
-            return new String(hexChars);
-        } catch (NoSuchAlgorithmException ex) {
-            l(ERROR, TAG, "Cannot sha256.", ex);
-            return input;
         }
     }
 
@@ -1221,7 +1211,7 @@ public final class Ouralabs {
         } catch (NoSuchFieldException ex) {
             // no-op
         } catch (IllegalAccessException ex) {
-            // no-ip
+            // no-op
         }
 
         if (tag == null || tag.length() == 0) {
@@ -1264,6 +1254,20 @@ public final class Ouralabs {
                         sOnProvideAssistDataListener = null;
                     }
                 }
+            }
+        }
+    }
+
+    private static void toggleUncaughtExceptionHandler() {
+        synchronized (sLock) {
+            Thread.UncaughtExceptionHandler handler = Thread.getDefaultUncaughtExceptionHandler();
+
+            if (getLogUncaughtExceptions() && handler != sExceptionHandler) {
+                l(DEBUG, TAG, "Using Ouralabs exception handler.");
+                Thread.setDefaultUncaughtExceptionHandler(sExceptionHandler);
+            } else if (!getLogUncaughtExceptions() && handler == sExceptionHandler) {
+                l(DEBUG, TAG, "Removing Ouralabs exception handler.");
+                Thread.setDefaultUncaughtExceptionHandler(sExceptionHandler.getOriginalUncaughtExceptionHandler());
             }
         }
     }
@@ -1452,6 +1456,7 @@ public final class Ouralabs {
                             saveSettings();
                             publishOnSettingsChange();
                             toggleLogLifecycle();
+                            toggleUncaughtExceptionHandler();
                         } else {
                             if (ex != null) {
                                 l(ERROR, TAG, "Could not retrieve settings.",
@@ -1781,13 +1786,22 @@ public final class Ouralabs {
             mOriginal = Thread.getDefaultUncaughtExceptionHandler();
         }
 
+        public Thread.UncaughtExceptionHandler getOriginalUncaughtExceptionHandler() {
+            return mOriginal;
+        }
+
         @Override
         public void uncaughtException(Thread thread, Throwable throwable) {
             if (throwable != null) {
-                f("AndroidRuntime", throwable.getMessage(), throwable);
+                if (Looper.getMainLooper().getThread() == thread) {
+                    f("AndroidRuntime", throwable.getMessage(), throwable);
+                } else {
+                    e("AndroidRuntime", throwable.getMessage(), throwable);
+                }
             }
 
             if (mOriginal != null) {
+                l(DEBUG, TAG, "Forwarding uncaught exception.", new KVP().put("handler", mOriginal.toString()));
                 mOriginal.uncaughtException(thread, throwable);
             }
         }
@@ -1921,9 +1935,7 @@ public final class Ouralabs {
             @Override
             public void onTrimMemory(int level) {
                 if (getLogLifecycle()) {
-                    KVP kvp = new KVP().put("level", level);
-
-                    i(TAG, "onTrimMemory.", kvp);
+                    i(TAG, "onTrimMemory.", new KVP().put("level", level));
                 }
             }
         };
