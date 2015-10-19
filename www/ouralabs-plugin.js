@@ -42,6 +42,21 @@ var noOp = function () {};
 var OuralabsPlugin = {};
 
 /**
+ * A helper used to convert Error objects into something that can be stringified.
+ */
+var stringifyReplacer = function (key, value) {
+	if (value instanceof Error) {
+		return {
+			message: value.message,
+			name: value.name
+		};
+	}
+	else {
+		return value;
+	}
+}
+
+/**
  * Log levels designate the severity of the log; used with the log() function.
  * Log levels are ordered from least severe to most severe.
  */
@@ -345,7 +360,7 @@ OuralabsPlugin.log = function log(logLevel, tag, message, metadata, successCallb
 		
 		// First try serializing to JSON.
 		try {
-			message += " " + JSON.stringify(metadata);
+			message += " " + JSON.stringify(metadata, stringifyReplacer);
 		}
 		catch (exception) {
 			
