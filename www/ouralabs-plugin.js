@@ -114,35 +114,41 @@ OuralabsPlugin.setHookBrowserConsole = function (enable) {
 		
 		// Treat calls to log() as debug level.
 		console.log = function() {
-			var args = Array.prototype.slice.call(arguments, 1);
-			OuralabsPlugin.logDebug("console.log()", arguments[0], args.length === 0 ? null : args);
+			var message = typeof(arguments[0]) === "string" ? arguments[0] : "[No Message]";
+			var args = typeof(arguments[0]) === "string" ? Array.prototype.slice.call(arguments, 1) : Array.prototype.slice.call(arguments, 0);
+			OuralabsPlugin.logDebug("console.log()", message, args.length === 0 ? null : args);
 		};
 		
 		// Trace doesn't normally accept arguments, however some browsers (like Chrome) will accept them.
 		// We'll mock trace as well for those cases (without the arguments it isn't as helpful for logging).
 		console.trace = function() {
-			var args = Array.prototype.slice.call(arguments, 1);
-			OuralabsPlugin.logTrace("console.trace()", arguments[0], args.length === 0 ? null : args);
+			var message = typeof(arguments[0]) === "string" ? arguments[0] : "[No Message]";
+			var args = typeof(arguments[0]) === "string" ? Array.prototype.slice.call(arguments, 1) : Array.prototype.slice.call(arguments, 0);
+			OuralabsPlugin.logTrace("console.trace()", message, args.length === 0 ? null : args);
 		};
 		
 		console.debug = function() {
-			var args = Array.prototype.slice.call(arguments, 1);
-			OuralabsPlugin.logDebug("console.debug()", arguments[0], args.length === 0 ? null : args);
+			var message = typeof(arguments[0]) === "string" ? arguments[0] : "[No Message]";
+			var args = typeof(arguments[0]) === "string" ? Array.prototype.slice.call(arguments, 1) : Array.prototype.slice.call(arguments, 0);
+			OuralabsPlugin.logDebug("console.debug()", message, args.length === 0 ? null : args);
 		};
 		
 		console.info = function() {
-			var args = Array.prototype.slice.call(arguments, 1);
-			OuralabsPlugin.logInfo("console.info()", arguments[0], args.length === 0 ? null : args);
+			var message = typeof(arguments[0]) === "string" ? arguments[0] : "[No Message]";
+			var args = typeof(arguments[0]) === "string" ? Array.prototype.slice.call(arguments, 1) : Array.prototype.slice.call(arguments, 0);
+			OuralabsPlugin.logInfo("console.info()", message, args.length === 0 ? null : args);
 		};
 		
 		console.warn = function() {
-			var args = Array.prototype.slice.call(arguments, 1);
-			OuralabsPlugin.logWarn("console.warn()", arguments[0], args.length === 0 ? null : args);
+			var message = typeof(arguments[0]) === "string" ? arguments[0] : "[No Message]";
+			var args = typeof(arguments[0]) === "string" ? Array.prototype.slice.call(arguments, 1) : Array.prototype.slice.call(arguments, 0);
+			OuralabsPlugin.logWarn("console.warn()", message, args.length === 0 ? null : args);
 		};
 		
 		console.error = function() {
-			var args = Array.prototype.slice.call(arguments, 1);
-			OuralabsPlugin.logError("console.error()", arguments[0], args.length === 0 ? null : args);
+			var message = typeof(arguments[0]) === "string" ? arguments[0] : "[No Message]";
+			var args = typeof(arguments[0]) === "string" ? Array.prototype.slice.call(arguments, 1) : Array.prototype.slice.call(arguments, 0);
+			OuralabsPlugin.logError("console.error()", message, args.length === 0 ? null : args);
 		};
 	}
 	else {
