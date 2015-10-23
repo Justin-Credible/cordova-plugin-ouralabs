@@ -4,7 +4,7 @@ This is a [Cordova](http://cordova.apache.org/) plugin for the Ouralabs centrali
 
 You can find out more about Ouralabs here: [https://www.ouralabs.com](https://www.ouralabs.com).
 
-This version of the plugin uses version `2.6.0` of the Ouralabs SDK. Documentation for Ouralabs SDK can be found [here](https://www.ouralabs.com/docs).
+This version of the plugin uses versions `2.7.0` (iOS) and `2.7.1` (Android) of the Ouralabs SDK. Documentation for Ouralabs SDK can be found [here](https://www.ouralabs.com/docs).
 
 # Install
 
