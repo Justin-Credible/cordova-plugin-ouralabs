@@ -1,7 +1,7 @@
 //
 //  Ouralabs
 //
-//  Copyright (c) 2014 Ouralabs. All rights reserved.
+//  Copyright (c) 2015 Ouralabs. All rights reserved.
 //
 
 #import <Foundation/Foundation.h>
@@ -10,12 +10,12 @@
 #define OUDouble(value, scaleValue) ([OUDouble doubleWithDouble:value scale:scaleValue])
 
 typedef NS_ENUM(NSInteger, OULogLevel) {
-    OULogLevelTrace     = 0,
-    OULogLevelDebug     = 1,
-    OULogLevelInfo      = 2,
-    OULogLevelWarn      = 3,
-    OULogLevelError     = 4,
-    OULogLevelFatal     = 5
+    OULogLevelTrace = 0,
+    OULogLevelDebug = 1,
+    OULogLevelInfo  = 2,
+    OULogLevelWarn  = 3,
+    OULogLevelError = 4,
+    OULogLevelFatal = 5
 };
 
 OBJC_EXTERN void __attribute__((overloadable)) OULogTrace(NSString *tag, NSString *message, ...) NS_FORMAT_FUNCTION(2, 3);
@@ -57,8 +57,6 @@ extern NSString *const OUAttr1;
 extern NSString *const OUAttr2;
 extern NSString *const OUAttr3;
 
-typedef void (^OUSettingsChangedBlock)(BOOL liveTail, OULogLevel logLevel);
-
 @interface OUDouble : NSObject
 @property (assign) double doubleValue;
 @property (assign) NSInteger scale;
@@ -68,6 +66,19 @@ typedef void (^OUSettingsChangedBlock)(BOOL liveTail, OULogLevel logLevel);
 + (OUDouble *)doubleWithDouble:(double)value scale:(NSInteger)scale;
 
 @end
+
+@interface OULogEntry : NSObject
+@property (nonatomic, strong) CLLocation *location;
+@property (nonatomic, copy) NSString *thread;
+@property (nonatomic, assign) NSTimeInterval time;
+@property (nonatomic, assign) NSInteger level;
+@property (nonatomic, copy) NSString *tag;
+@property (nonatomic, copy) NSString *message;
+@property (nonatomic, copy) NSString *appVersion;
+@end
+
+typedef void (^OUSettingsChangedBlock)(BOOL liveTail, OULogLevel logLevel);
+typedef void (^OULogBlock)(OULogEntry *log);
 
 @interface Ouralabs : NSObject
 
@@ -86,6 +97,8 @@ typedef void (^OUSettingsChangedBlock)(BOOL liveTail, OULogLevel logLevel);
 + (void)setSettingsChangedBlock:(OUSettingsChangedBlock)settingsChangedBlock;
 + (void)setLogLifecycle:(NSNumber *)enable;
 + (void)setLogUncaughtExceptions:(NSNumber *)enable;
++ (void)setLogBlock:(OULogBlock)logBlock;
++ (void)setLogBlock:(OULogBlock)logBlock queue:(dispatch_queue_t)queue;
 
 + (BOOL)getInitialized;
 + (BOOL)getLiveTail;
@@ -102,6 +115,7 @@ typedef void (^OUSettingsChangedBlock)(BOOL liveTail, OULogLevel logLevel);
 + (OUSettingsChangedBlock)getSettingsChangedBlock;
 + (BOOL)getLogLifecycle;
 + (BOOL)getLogUncaughtExceptions;
++ (OULogBlock)getLogBlock;
 
 + (void)update;
 + (void)flush;

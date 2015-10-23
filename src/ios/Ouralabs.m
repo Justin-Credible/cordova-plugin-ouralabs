@@ -218,7 +218,10 @@ NSString *const OUAttr3 = @"attr_3";
 
 static NSString *const TAG = @"Ouralabs";
 
-static NSString *const VERSION = @"2.6.0";
+static NSString *const VERSION = @"2.7.0";
+
+static const char *LOG_LEVELS[] = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"};
+static const char *LOG_LEVEL_INDICATORS[] = {"T", "D", "I", "W", "E", "F"};
 
 static NSString *const SETTING_API_SCHEME                = @"api_scheme";
 static NSString *const SETTING_API_HOST                  = @"api_host";
@@ -284,84 +287,44 @@ void uncaught_exception_handler(NSException *ex) {
 
 @end
 
-#pragma mark - OULog
+#pragma mark - OULogEntry
 
-@interface OULogInternal : NSObject
-@property (nonatomic, strong) CLLocation *location;
-@property (nonatomic, strong) NSString *thread;
-@property (nonatomic, assign) NSTimeInterval time;
-@property (nonatomic, strong) NSNumber *level;
-@property (nonatomic, strong) NSString *tag;
-@property (nonatomic, strong) NSString *message;
+@interface OULogEntry()
 @property (nonatomic, strong) NSDateFormatter *dateFormatter;
-- (OULogInternal *)initWithDateFormatter:(NSDateFormatter *)dateFormatter location:(CLLocation *)location thread:(NSString *)thread time:(NSTimeInterval)time level:(NSNumber *)level tag:(NSString *)tag message:(NSString *)message;
-- (NSString *)fullMessageWithAppVersion:(NSString *)appVersion;
-- (NSString *)levelString;
-- (NSString *)levelIndicator;
-- (NSString *)dateString;
+- (OULogEntry *)initWithLocation:(CLLocation *)location
+                          thread:(NSString *)thread
+                            time:(NSTimeInterval)time
+                           level:(NSInteger)level
+                             tag:(NSString *)tag
+                         message:(NSString *)message
+                      appVersion:(NSString *)appVersion;
+- (NSString *)fullMessage;
 @end
 
-@implementation OULogInternal
-- (OULogInternal *)initWithDateFormatter:(NSDateFormatter *)dateFormatter location:(CLLocation *)location thread:(NSString *)thread time:(NSTimeInterval)time level:(NSNumber *)level tag:(NSString *)tag message:(NSString *)message {
+@implementation OULogEntry
+
+- (OULogEntry *)initWithLocation:(CLLocation *)location
+                          thread:(NSString *)thread
+                            time:(NSTimeInterval)time
+                           level:(NSInteger)level
+                             tag:(NSString *)tag
+                         message:(NSString *)message
+                      appVersion:(NSString *)appVersion {
     if (self = [super init]) {
-        _dateFormatter = dateFormatter;
         _location = location;
         _thread = thread && thread.length > 0 ? [thread stringByReplacingOccurrencesOfString:@" " withString:@"_"] : @"(null)";
         _time = time;
         _level = level;
         _tag = tag && tag.length > 0 ? tag : @"(null)";
         _message = valOrBlank(message);
+        _appVersion = appVersion;
     }
     return self;
 }
 
-- (NSString *)dateString {
-    return [self.dateFormatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:self.time]];
-}
-
-- (NSString *)levelString {
-    static NSString *trace   = @"TRACE";
-    static NSString *debug   = @"DEBUG";
-    static NSString *info    = @"INFO";
-    static NSString *warn    = @"WARN";
-    static NSString *error   = @"ERROR";
-    static NSString *fatal   = @"FATAL";
-    static NSString *unknown = @"UNKNOWN";
-    
-    switch ([self.level integerValue]) {
-        case OULogLevelTrace : return trace;
-        case OULogLevelDebug : return debug;
-        case OULogLevelInfo  : return info;
-        case OULogLevelWarn  : return warn;
-        case OULogLevelError : return error;
-        case OULogLevelFatal : return fatal;
-        default              : return unknown;
-    }
-}
-
-- (NSString *)levelIndicator {
-    static NSString *t = @"T";
-    static NSString *d = @"D";
-    static NSString *i = @"I";
-    static NSString *w = @"W";
-    static NSString *e = @"E";
-    static NSString *f = @"F";
-    static NSString *u = @"U";
-    
-    switch ([self.level integerValue]) {
-        case OULogLevelTrace : return t;
-        case OULogLevelDebug : return d;
-        case OULogLevelInfo  : return i;
-        case OULogLevelWarn  : return w;
-        case OULogLevelError : return e;
-        case OULogLevelFatal : return f;
-        default              : return u;
-    }
-}
-
-- (NSString *)fullMessageWithAppVersion:(NSString *)appVersion {
+- (NSString *)fullMessage {
     NSMutableString *str = [NSMutableString new];
-    [str appendString:appVersion];
+    [str appendString:self.appVersion];
     [str appendString:@" "];
     [str appendFormat:@"%.6f", self.location ? self.location.coordinate.latitude : 0.0];
     [str appendString:@","];
@@ -373,7 +336,7 @@ void uncaught_exception_handler(NSException *ex) {
     [str appendString:@" ["];
     [str appendString:self.tag];
     [str appendString:@"] "];
-    [str appendString:[self levelString]];
+    [str appendString:[NSString stringWithCString:LOG_LEVELS[self.level] encoding:NSUTF8StringEncoding]];
     [str appendString:@" "];
     [str appendString:self.message];
     return str;
@@ -462,6 +425,8 @@ static CLLocation               *sLocation;
 static BOOL                      sDisableTimedOperations;
 static NSNumber                 *sLoggerLogsAllowed;
 static OUSettingsChangedBlock    sSettingsChangedBlock;
+static OULogBlock                sLogBlock;
+static dispatch_queue_t          sLogBlockDispatchQueue;
 static NSNumber                 *sLogLifecycle;
 static NSNumber                 *sUncaughtExceptions;
 
@@ -592,15 +557,11 @@ static NSTimer *sUploadTimer;
                         [self publishSettingsChanged];
                         [self toggleUncaughtExceptionHandler];
                     } else {
-                        if (error) {
-                            OULogInner(LERROR, TAG, @"Could not retrieve settings.", @{@"time"   : OUDouble(delta, 3),
-                                                                                       @"error"  : error.description,
-                                                                                       @"status" : @(statusCode)});
-                        } else {
-                            OULogInner(LERROR, TAG, @"Could not retrieve settings.", @{@"time"   : OUDouble(delta, 3),
-                                                                                       @"error"  : dict[@"error"],
-                                                                                       @"status" : @(statusCode)});
-                        }
+                        NSString *errorString = error ? error.description : dict[@"error"];
+                        
+                        OULogInner(LERROR, TAG, @"Could not retrieve settings.", @{@"time"   : OUDouble(delta, 3),
+                                                                                   @"error"  : errorString,
+                                                                                   @"status" : @(statusCode)});
                     }
                     
                 }];
@@ -679,17 +640,12 @@ static NSTimer *sUploadTimer;
                                     
                                     [self removeFile:original];
                                 } else {
-                                    if (error) {
-                                        OULogInner(LERROR, TAG, @"Could not upload logs.", @{@"time"   : OUDouble(delta, 3),
-                                                                                             @"error"  : error.description,
-                                                                                             @"status" : @(statusCode),
-                                                                                             @"size"   : @(size)});
-                                    } else {
-                                        OULogInner(LERROR, TAG, @"Could not upload logs.", @{@"time"   : OUDouble(delta, 3),
-                                                                                             @"error"  : dict[@"error"],
-                                                                                             @"status" : @(statusCode),
-                                                                                             @"size"   : @(size)});
-                                    }
+                                    NSString *errorString = error ? error.description : dict[@"error"];
+                                    
+                                    OULogInner(LERROR, TAG, @"Could not upload logs.", @{@"time"   : OUDouble(delta, 3),
+                                                                                         @"error"  : errorString,
+                                                                                         @"status" : @(statusCode),
+                                                                                         @"size"   : @(size)});
                                 }
                                 
                                 [self removeFile:file];
@@ -733,7 +689,7 @@ static NSTimer *sUploadTimer;
             [sQueue removeAllObjects];
             unlock();
             
-            for (OULogInternal *log in logs) {
+            for (OULogEntry *log in logs) {
                 [self processLog:log];
             }
             
@@ -918,6 +874,19 @@ static NSTimer *sUploadTimer;
     [self toggleUncaughtExceptionHandler];
 }
 
++ (void)setLogBlock:(OULogBlock)logBlock {
+    [self setLogBlock:logBlock queue:dispatch_get_main_queue()];
+}
+
++ (void)setLogBlock:(OULogBlock)logBlock queue:(dispatch_queue_t)queue {
+    OULogInner(LINFO, TAG, @"Set log block.");
+    
+    lock();
+    sLogBlock = logBlock;
+    sLogBlockDispatchQueue = queue;
+    unlock();
+}
+
 + (BOOL)getInitialized {
     lock();
     BOOL val = sInitialized;
@@ -1080,6 +1049,14 @@ static NSTimer *sUploadTimer;
     return val;
 }
 
++ (OULogBlock)getLogBlock {
+    OULogBlock block;
+    lock();
+    block = sLogBlock;
+    unlock();
+    return block;
+}
+
 + (void)update {
     lock();
     if (sInitialized) {
@@ -1147,13 +1124,13 @@ static NSTimer *sUploadTimer;
 + (void)logInternal:(NSNumber *)level tag:(NSString *)tag message:(NSString *)message {
     lock();
 
-    OULogInternal *log = [[OULogInternal alloc] initWithDateFormatter:sDateFormatter
-                                                             location:[self getLocation]
-                                                               thread:[self threadName]
-                                                                 time:now()
-                                                                level:level
-                                                                  tag:tag
-                                                              message:message];
+    OULogEntry *log = [[OULogEntry alloc] initWithLocation:[self getLocation]
+                                                    thread:[self threadName]
+                                                      time:now()
+                                                     level:[level integerValue]
+                                                       tag:tag
+                                                   message:message
+                                                appVersion:[self getAppVersion]];
     
     if ([self getBuffered] && level.integerValue < OULogLevelError) {
         [sQueue addObject:log];
@@ -1168,23 +1145,28 @@ static NSTimer *sUploadTimer;
     unlock();
 }
 
-+ (void)processLog:(OULogInternal *)log {
++ (void)processLog:(OULogEntry *)log {
     if (![self getDiskOnly]) {
         printf("%s %s[%d:%s] %s/%s %s\n",
-               [log dateString].UTF8String,
+               [sDateFormatter stringFromDate:[NSDate dateWithTimeIntervalSince1970:log.time]].UTF8String,
                sApplicationName.UTF8String,
                sPid,
                log.thread.UTF8String,
-               [log levelIndicator].UTF8String,
+               LOG_LEVEL_INDICATORS[log.level],
                log.tag.UTF8String,
                log.message.UTF8String);
     }
 
     lock();
+    if (sLogBlock) {
+        dispatch_async(sLogBlockDispatchQueue, ^{
+            sLogBlock(log);
+        });
+    }
+    
     if (sFileHandle && sEncryptedAESKey) {
-        
         NSData *iv = [self generateAESIV];
-        NSData *encrypted = [self AESEncrypt:[[log fullMessageWithAppVersion:[self getAppVersion]] dataUsingEncoding:NSUTF8StringEncoding]
+        NSData *encrypted = [self AESEncrypt:[[log fullMessage] dataUsingEncoding:NSUTF8StringEncoding]
                                          key:sAESKey
                                           iv:iv];
 
@@ -1379,7 +1361,7 @@ static NSTimer *sUploadTimer;
                                                                                 @"app_version"      : valOrBlank([self getAppVersion]),
                                                                                 @"opt_in"           : @([self getOptIn]),
                                                                                 @"live_tail"        : valOr(sLiveTail, [NSNull null]),
-                                                                                @"log_level"        : sLogLevel ? sLogLevel : [NSNull null]}];
+                                                                                @"log_level"        : valOr(sLogLevel, [NSNull null])}];
     
     if (sAttributes) {
         if (sAttributes[OUAttr1]) dict[OUAttr1] = sAttributes[OUAttr1];

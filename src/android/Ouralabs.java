@@ -68,6 +68,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.zip.GZIPOutputStream;
 
 import javax.crypto.BadPaddingException;
@@ -81,7 +82,7 @@ public final class Ouralabs {
 
     private static final String TAG = "Ouralabs";
 
-    public static final String VERSION = "2.6.0";
+    public static final String VERSION = "2.7.1";
 
     public static final int TRACE = 0;
     public static final int DEBUG = 1;
@@ -117,10 +118,11 @@ public final class Ouralabs {
     private static final String SETTING_LOG_LIFECYCLE = "log_lifecycle";
     private static final String SETTING_UNCAUGHT_EXCEPTIONS = "uncaught_exceptions";
 
-    private static final String _SETTING_ATTR_1 = "_attr_1";
-    private static final String _SETTING_ATTR_2 = "_attr_2";
-    private static final String _SETTING_ATTR_3 = "_attr_3";
-    private static final String _SETTING_OPT_IN = "_opt_in";
+    private static final String _SETTING_ATTR_1     = "_attr_1";
+    private static final String _SETTING_ATTR_2     = "_attr_2";
+    private static final String _SETTING_ATTR_3     = "_attr_3";
+    private static final String _SETTING_OPT_IN     = "_opt_in";
+    private static final String _SETTING_ANDROID_ID = "_android_id";
 
     private static final Object sLock = new Object();
     private static final Cache<String, Object> sCache = new Cache<String, Object>(30);
@@ -137,7 +139,7 @@ public final class Ouralabs {
     private static Boolean sLiveTail;
     private static Boolean sDiskOnly;
     private static Boolean sBuffered;
-    private static Queue<LogInternal> sQueue;
+    private static Queue<LogEntry> sQueue;
     private static JSONObject sSettings;
     private static String sAppVersion;
     private static Location sLocation;
@@ -147,6 +149,10 @@ public final class Ouralabs {
     private static Boolean sUncaughtExceptions;
 
     private static OnSettingsChangeListener sOnSettingsChangeListener;
+
+    private static Handler sOnLogListenerHandler;
+    private static OnLogListener sOnLogListener;
+
     private static ActivityLifecycleCallbacks sActivityLifecycleCallbacks;
     private static OnProvideAssistDataListener sOnProvideAssistDataListener;
     private static ExceptionHandler sExceptionHandler;
@@ -179,7 +185,7 @@ public final class Ouralabs {
             thread.setPriority(Thread.NORM_PRIORITY);
             thread.start();
 
-            sQueue = new LinkedList<LogInternal>();
+            sQueue = new LinkedList<LogEntry>();
             sHandler = new Handler(thread.getLooper());
             sMainHandler = new Handler(Looper.getMainLooper());
             sFileComparator = new FileComparator();
@@ -215,7 +221,7 @@ public final class Ouralabs {
                 w(TAG, "Ouralabs already initialized.");
             } else if (context == null) {
                 e(TAG, "Cannot init with null context.");
-            } else if (channelKey == null || channelKey.length() == 0) {
+            } else if (isEmpty(channelKey)) {
                 e(TAG, "Cannot init with null or empty channel key.");
             } else {
                 sInitialized = true;
@@ -302,9 +308,9 @@ public final class Ouralabs {
             if (attributes == null) attributes = new HashMap<String, String>();
             if (sAttributes == null) sAttributes = new HashMap<String, String>();
 
-            String attr1 = sAttributes.containsKey(ATTR_1) ? sAttributes.get(ATTR_1) : "";
-            String attr2 = sAttributes.containsKey(ATTR_2) ? sAttributes.get(ATTR_2) : "";
-            String attr3 = sAttributes.containsKey(ATTR_3) ? sAttributes.get(ATTR_3) : "";
+            String attr1 = sAttributes.containsKey(ATTR_1) ? valOrEmpty(sAttributes.get(ATTR_1)) : "";
+            String attr2 = sAttributes.containsKey(ATTR_2) ? valOrEmpty(sAttributes.get(ATTR_2)) : "";
+            String attr3 = sAttributes.containsKey(ATTR_3) ? valOrEmpty(sAttributes.get(ATTR_3)) : "";
 
             boolean changed;
 
@@ -385,6 +391,19 @@ public final class Ouralabs {
         toggleUncaughtExceptionHandler();
     }
 
+    public static void setOnLogListener(OnLogListener listener) {
+        setOnLogListener(listener, new Handler(Looper.getMainLooper()));
+    }
+
+    public static void setOnLogListener(OnLogListener listener, Handler handler) {
+        l(INFO, TAG, "Set log listener.");
+
+        synchronized (sLock) {
+            sOnLogListener = listener;
+            sOnLogListenerHandler = handler != null ? handler : new Handler(Looper.getMainLooper());
+        }
+    }
+
     public static void update() {
         synchronized (sLock) {
             if (sInitialized) {
@@ -395,7 +414,7 @@ public final class Ouralabs {
                 sHandler.post(sSettingsJob);
                 sHandler.post(sUploadJob);
             } else {
-                l(WARN, TAG, "Attempted to updated without initializing.");
+                l(WARN, TAG, "Attempted to update without initializing.");
             }
         }
     }
@@ -527,6 +546,12 @@ public final class Ouralabs {
         synchronized (sLock) {
             if (sUncaughtExceptions != null) return sUncaughtExceptions;
             return sSettings != null && sSettings.optBoolean(SETTING_UNCAUGHT_EXCEPTIONS);
+        }
+    }
+
+    public static OnLogListener getOnLogListener() {
+        synchronized (sLock) {
+            return sOnLogListener;
         }
     }
 
@@ -672,13 +697,14 @@ public final class Ouralabs {
 
     private static void logInternal(int level, String tag, String message) {
         synchronized (sLock) {
-            LogInternal log = new LogInternal(
+            LogEntry log = new LogEntry(
                     getLocation(),
                     Thread.currentThread().getName(),
                     System.currentTimeMillis(),
                     level,
                     tag,
-                    message);
+                    message,
+                    getAppVersion());
 
             if (getBuffered() && level < ERROR) {
                 sQueue.offer(log);
@@ -694,34 +720,43 @@ public final class Ouralabs {
     }
 
     @SuppressWarnings("All")
-    private static void processLog(LogInternal log) {
+    private static void processLog(final LogEntry log) {
         if (!getDiskOnly()) {
-            switch (log.level) {
+            switch (log.getLogLevel()) {
                 case TRACE:
-                    Log.println(Log.VERBOSE, log.tag, log.message);
+                    Log.println(Log.VERBOSE, log.getTag(), log.getMessage());
                     break;
                 case DEBUG:
-                    Log.println(Log.DEBUG, log.tag, log.message);
+                    Log.println(Log.DEBUG, log.getTag(), log.getMessage());
                     break;
                 case INFO:
-                    Log.println(Log.INFO, log.tag, log.message);
+                    Log.println(Log.INFO, log.getTag(), log.getMessage());
                     break;
                 case WARN:
-                    Log.println(Log.WARN, log.tag, log.message);
+                    Log.println(Log.WARN, log.getTag(), log.getMessage());
                     break;
                 case ERROR:
                 case FATAL:
-                    Log.println(Log.ERROR, log.tag, log.message);
+                    Log.println(Log.ERROR, log.getTag(), log.getMessage());
                     break;
             }
         }
 
         synchronized (sLock) {
+            if (sOnLogListener != null) {
+                sOnLogListenerHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        sOnLogListener.onLog(log);
+                    }
+                });
+            }
+
             if (sFile == null) return;
 
             if (sOutputStream != null) {
                 IvParameterSpec ivSpec = generateAESIV();
-                String msg = log.getFullMessage(getAppVersion());
+                String msg = log.getFullMessage();
                 byte[] message = msg.getBytes();
                 byte[] encrypted = AESEncrypt(message, sAESKey, ivSpec);
 
@@ -780,7 +815,23 @@ public final class Ouralabs {
     }
 
     private static String getAndroidID() {
-        return Secure.getString(sContext.getContentResolver(), Secure.ANDROID_ID);
+        try {
+            return sSettings.getString(_SETTING_ANDROID_ID);
+        } catch (JSONException ex) {
+            String androidID = Secure.getString(sContext.getContentResolver(), Secure.ANDROID_ID);
+
+            if (isEmpty(androidID)) {
+                androidID = UUID.randomUUID().toString();
+            }
+
+            try {
+                sSettings.put(_SETTING_ANDROID_ID, androidID);
+            } catch (JSONException ex1) {
+                l(ERROR, TAG, "Could not get android ID.");
+            }
+
+            return androidID;
+        }
     }
 
     @TargetApi(9)
@@ -899,7 +950,7 @@ public final class Ouralabs {
                 String key = itr.next();
                 Object val = jsonObject.opt(key);
 
-                if (key.startsWith("_")) continue;
+                if (key.startsWith("_attr")) continue;
 
                 try {
                     sSettings.put(key, val);
@@ -1039,6 +1090,10 @@ public final class Ouralabs {
     private static String valOr(String val, String defaultVal) {
         if (val == null) return defaultVal;
         return val;
+    }
+
+    private static boolean isEmpty(String val) {
+        return val == null || val.length() == 0;
     }
 
     private static boolean hasPermission(String permission) {
@@ -1214,7 +1269,7 @@ public final class Ouralabs {
             // no-op
         }
 
-        if (tag == null || tag.length() == 0) {
+        if (isEmpty(tag)) {
             tag = clazz.getSimpleName();
         }
 
@@ -1273,35 +1328,65 @@ public final class Ouralabs {
     }
 
     // =============================================================================================
-    // LogInternal
+    // Log
     // =============================================================================================
 
-    private static class LogInternal {
+    public static class LogEntry {
 
         private static final String NULL_STRING = "(null)";
 
-        Location location;
-        String thread;
-        long time;
-        int level;
-        String tag;
-        String message;
+        private Location mLocation;
+        private String mThread;
+        private long mTime;
+        private int mLevel;
+        private String mTag;
+        private String mMessage;
+        private String mAppVersion;
 
-        public LogInternal(Location location, String thread, long time, int level, String tag, String message) {
-            this.location = location;
-            this.thread = thread != null && thread.length() > 0 ? thread.replace(' ', '_') : NULL_STRING;
-            this.time = time;
-            this.level = level;
-            this.tag = tag != null && tag.length() > 0 ? tag : NULL_STRING;
-            this.message = message != null ? message : "";
+        private LogEntry(Location location, String thread, long time, int level, String tag, String message, String appVersion) {
+            mLocation = location;
+            mThread = thread != null && thread.length() > 0 ? thread.replace(' ', '_') : NULL_STRING;
+            mTime = time;
+            mLevel = level;
+            mTag = tag != null && tag.length() > 0 ? tag : NULL_STRING;
+            mMessage = message != null ? message : "";
+            mAppVersion = appVersion;
         }
 
-        public String getFullMessage(String appVersion) {
-            String lat = String.valueOf(location != null ? location.getLatitude() : 0);
-            String lon = String.valueOf(location != null ? location.getLongitude() : 0);
-            String lvl = level < LOG_LEVELS.length ? LOG_LEVELS[level] : "UNKNOWN";
+        public String getFullMessage() {
+            String lat = String.valueOf(mLocation != null ? mLocation.getLatitude() : 0);
+            String lon = String.valueOf(mLocation != null ? mLocation.getLongitude() : 0);
+            String lvl = mLevel < LOG_LEVELS.length ? LOG_LEVELS[mLevel] : "UNKNOWN";
 
-            return appVersion + " " + lat + "," + lon + " " + time + " - " + thread + " [" + tag + "] " + lvl + " " + message;
+            return mAppVersion + " " + lat + "," + lon + " " + mTime + " - " + mThread + " [" + mTag + "] " + lvl + " " + mMessage;
+        }
+
+        public Location getLocation() {
+            return mLocation;
+        }
+
+        public String getThread() {
+            return mThread;
+        }
+
+        public long getTime() {
+            return mTime;
+        }
+
+        public int getLogLevel() {
+            return mLevel;
+        }
+
+        public String getTag() {
+            return mTag;
+        }
+
+        public String getMessage() {
+            return mMessage;
+        }
+
+        public String getAppVersion() {
+            return mAppVersion;
         }
     }
 
@@ -1458,19 +1543,13 @@ public final class Ouralabs {
                             toggleLogLifecycle();
                             toggleUncaughtExceptionHandler();
                         } else {
-                            if (ex != null) {
-                                l(ERROR, TAG, "Could not retrieve settings.",
-                                        new KVP().
-                                                put("time", delta, 3).
-                                                put("error", ex.getMessage()).
-                                                put("status", statusCode));
-                            } else {
-                                l(ERROR, TAG, "Could not retrieve settings.",
-                                        new KVP().
-                                                put("time", delta, 3).
-                                                put("error", jsonObject.optString("error")).
-                                                put("status", statusCode));
-                            }
+                            String error = ex != null ? ex.getMessage() : jsonObject.optString("error");
+
+                            l(ERROR, TAG, "Could not retrieve settings.",
+                                    new KVP().
+                                            put("time", delta, 3).
+                                            put("error", error).
+                                            put("status", statusCode));
                         }
                     }
                 });
@@ -1567,21 +1646,14 @@ public final class Ouralabs {
 
                                     original.delete();
                                 } else {
-                                    if (ex != null) {
-                                        l(ERROR, TAG, "Could not upload logs.",
-                                                new KVP().
-                                                        put("time", delta, 3).
-                                                        put("error", ex.getMessage()).
-                                                        put("size", bytes.length).
-                                                        put("status", statusCode));
-                                    } else {
-                                        l(ERROR, TAG, "Could not upload logs.",
-                                                new KVP().
-                                                        put("time", delta, 3).
-                                                        put("error", jsonObject.optString("error")).
-                                                        put("size", bytes.length).
-                                                        put("status", statusCode));
-                                    }
+                                    String error = ex != null ? ex.getMessage() : jsonObject.optString("error");
+
+                                    l(ERROR, TAG, "Could not upload logs.",
+                                            new KVP().
+                                                    put("time", delta, 3).
+                                                    put("error", error).
+                                                    put("size", bytes.length).
+                                                    put("status", statusCode));
                                 }
 
                                 file.delete();
@@ -1618,14 +1690,14 @@ public final class Ouralabs {
     private static class QueueJob implements Runnable {
         @Override
         public void run() {
-            List<LogInternal> logs = new ArrayList<LogInternal>();
+            List<LogEntry> logs = new ArrayList<LogEntry>();
 
             synchronized (sLock) {
                 logs.addAll(sQueue);
                 sQueue.clear();
             }
 
-            for (LogInternal log : logs) {
+            for (LogEntry log : logs) {
                 processLog(log);
             }
 
@@ -1772,6 +1844,14 @@ public final class Ouralabs {
 
     public interface OnSettingsChangeListener {
         void onSettingsChange(boolean liveTail, int logLevel);
+    }
+
+    // =============================================================================================
+    // OnLogListener
+    // =============================================================================================
+
+    public interface OnLogListener {
+       void onLog(LogEntry log);
     }
 
     // =============================================================================================
