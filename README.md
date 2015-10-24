@@ -22,7 +22,7 @@ The plugin is available via a global variable named `OuralabsPlugin`. It exposes
 
 All functions accept optional success and failure callbacks as their final two arguments, where the failure callback will receive an error string as an argument unless otherwise noted.
 
-A TypeScript definition file for the JavaScript interface is available on DefinitelyTyped.
+A TypeScript definition file for the JavaScript interface is available on [DefinitelyTyped](https://github.com/borisyankov/DefinitelyTyped/blob/master/cordova-plugin-ouralabs/cordova-plugin-ouralabs.d.ts) and can be installed using the `tsd` command line tool.
 
 ## Log Levels
 
