@@ -125,7 +125,7 @@
 
     // Delegate to the Ouralabs API.
     [self.commandDelegate runInBackground:^{
-        [Ouralabs log:logLevel tag:tag message:message];
+        [Ouralabs log:logLevel tag:tag message:message kvp:nil];
 
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
