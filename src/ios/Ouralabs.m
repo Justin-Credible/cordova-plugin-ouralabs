@@ -533,14 +533,14 @@ static NSTimer *sUploadTimer;
         
         sSettingsBlock = ^{
             if ([self isConnected]) {
-                NSTimeInterval start = now();
+                //NSTimeInterval start = now();
                 
                 NSString *base = [NSString stringWithFormat:@"api/v1/channels/%@/settings?", sChannelKey];
                 
                 base = [self appendQueryParams:base dict:[self device]];
                 
                 [self makeRequest:base body:nil response:^(NSInteger statusCode, NSDictionary *dict, NSError *error) {
-                    NSTimeInterval delta = now() - start;
+                    //NSTimeInterval delta = now() - start;
                     
                     if (statusCode == 200) {
                         lock();
@@ -556,14 +556,16 @@ static NSTimer *sUploadTimer;
                         [self saveSettings];
                         [self publishSettingsChanged];
                         [self toggleUncaughtExceptionHandler];
-                    } else {
+                    } 
+                    /*
+                    else {
                         NSString *errorString = error ? error.description : dict[@"error"];
                         
                         OULogInner(LERROR, TAG, @"Could not retrieve settings.", @{@"time"   : OUDouble(delta, 3),
                                                                                    @"error"  : errorString,
                                                                                    @"status" : @(statusCode)});
                     }
-                    
+                    */ 
                 }];
             } else {
                 OULogInner(LWARN, TAG, @"Could not update settings. Not connected to the internet.");
