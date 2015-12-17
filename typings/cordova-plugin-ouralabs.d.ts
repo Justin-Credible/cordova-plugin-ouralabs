@@ -1,4 +1,4 @@
-// Type definitions for cordova-plugin-ouralabs 1.3.1
+// Type definitions for cordova-plugin-ouralabs 1.3.2
 // Project: https://github.com/Justin-Credible/cordova-plugin-ouralabs
 // Definitions by: Justin Unterreiner <https://github.com/Justin-Credible>
 // Definitions: https://github.com/borisyankov/DefinitelyTyped
